@@ -39,8 +39,23 @@ def sanitize_ui_code(code: str) -> tuple[str, list[str]]:
     return code, findings
 
 
+def audit_accessibility(code: str) -> list[str]:
+    issues = []
+    low = code.lower()
+    if "<html" in low and "lang=" not in low:
+        issues.append("html element is missing a lang attribute")
+    if "<img" in low and "alt=" not in low:
+        issues.append("an img is missing an alt attribute")
+    if ("<input" in low or "<select" in low or "<textarea" in low) and "<label" not in low:
+        issues.append("form fields present but no label elements found")
+    if re.search(r"<button[^>]*>\s*</button>", low):
+        issues.append("a button has no accessible text")
+    return issues
+
+
 class SketchRequest(BaseModel):
     image: str
+    style: str = "modern, clean, light"
 
 
 @app.post("/generate")
@@ -52,12 +67,20 @@ async def generate(req: SketchRequest):
         return JSONResponse(status_code=400, content={"error": "Bad image data"})
 
     try:
-        generated = await run_agent_pipeline(image_bytes)
+        result = await run_agent_pipeline(image_bytes, style=req.style)
     except Exception as e:
         return JSONResponse(status_code=502, content={"error": f"Agent error: {e}"})
 
-    clean_code, findings = sanitize_ui_code(generated)
-    return {"code": clean_code, "security_findings": findings}
+    clean_code, findings = sanitize_ui_code(result.get("code", ""))
+    a11y = audit_accessibility(clean_code)
+
+    return {
+        "code": clean_code,
+        "spec": result.get("spec", ""),
+        "security_findings": findings,
+        "accessibility_issues": a11y,
+        "stages": ["Vision", "CodeGen", "Refiner", "Security (MCP)"],
+    }
 
 
 @app.get("/", response_class=HTMLResponse)

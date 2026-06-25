@@ -1,159 +1,269 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RetinaStyle AI</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      background: #0b0d12;
-      color: #e6e8ee;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-    header {
-      padding: 14px 20px;
-      border-bottom: 1px solid #1c2030;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
-    header .dot { color: #6c8cff; }
-    header small { color: #7b8194; margin-left: auto; }
-    main {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1px;
-      background: #1c2030;
-      min-height: 0;
-    }
-    .panel { background: #0b0d12; display: flex; flex-direction: column; min-height: 0; }
-    .panel h2 {
-      font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
-      color: #7b8194; margin: 0; padding: 10px 14px; border-bottom: 1px solid #1c2030;
-    }
-    .canvas-wrap { flex: 1; position: relative; }
-    #pad { width: 100%; height: 100%; background: #11141c; display: block; cursor: crosshair; touch-action: none; }
-    .toolbar { padding: 10px 14px; display: flex; gap: 8px; border-top: 1px solid #1c2030; }
-    button {
-      background: #6c8cff; color: #0b0d12; border: 0; border-radius: 8px;
-      padding: 9px 14px; font-weight: 600; cursor: pointer; font-size: 13px;
-    }
-    button.ghost { background: #1c2030; color: #c3c8d6; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    iframe { flex: 1; width: 100%; border: 0; background: #fff; }
-    .status { padding: 8px 14px; font-size: 12px; color: #7b8194; border-top: 1px solid #1c2030; min-height: 32px; }
-    .status.err { color: #ff6b6b; }
-    .status.ok { color: #5bd6a0; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RetinaStyle AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg0:#080912; --panel:rgba(20,22,38,0.55); --line:rgba(255,255,255,0.08);
+    --txt:#e8eaf2; --muted:#9aa0b8; --accent:#7c6cff; --accent2:#3ad6c5; --danger:#ff6b6b; --ok:#4fd99b;
+    --disp:'Space Grotesk',ui-sans-serif,system-ui,sans-serif; --ease:cubic-bezier(.22,1,.36,1);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; color:var(--txt); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:linear-gradient(125deg,#070810,#120e26,#081420,#070810); background-size:400% 400%;
+    animation:bgshift 26s ease infinite; min-height:100vh; display:flex; flex-direction:column; overflow-x:hidden;
+  }
+  @keyframes bgshift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+  #bg{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:.55}
+  header,.pipeline,main{position:relative;z-index:1}
+
+  @keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+  .rise{opacity:0;animation:rise .7s var(--ease) forwards}
+
+  header{padding:16px 26px; display:flex; align-items:center; gap:14px; border-bottom:1px solid var(--line)}
+  .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:flex;align-items:center;justify-content:center;font-weight:800;color:#080912;font-family:var(--disp);
+    box-shadow:0 0 30px rgba(124,108,255,.6);animation:glow 3.5s ease-in-out infinite}
+  @keyframes glow{0%,100%{box-shadow:0 0 26px rgba(124,108,255,.45)}50%{box-shadow:0 0 40px rgba(58,214,197,.6)}}
+  header h1{font-size:21px;margin:0;letter-spacing:.4px;font-weight:700;font-family:var(--disp);
+    background:linear-gradient(120deg,#fff,#b9b2ff,#8ff0e4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  header .tag{color:var(--muted);font-size:13px;margin-left:auto;letter-spacing:.2px}
+  header a{color:var(--accent2);text-decoration:none;font-size:13px;border:1px solid var(--line);
+    padding:7px 13px;border-radius:9px;transition:.3s var(--ease)}
+  header a:hover{background:rgba(58,214,197,.12);transform:translateY(-1px)}
+
+  .pipeline{display:flex;gap:10px;padding:14px 26px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  .stage{flex:1;min-width:150px;background:var(--panel);backdrop-filter:blur(14px);border:1px solid var(--line);
+    border-radius:13px;padding:11px 14px;display:flex;align-items:center;gap:10px;transition:.4s var(--ease)}
+  .stage:hover{transform:translateY(-2px)}
+  .stage .dot{width:10px;height:10px;border-radius:50%;background:#3a3f55;transition:.4s var(--ease);flex-shrink:0}
+  .stage .nm{font-size:13px;font-weight:600;font-family:var(--disp)}
+  .stage .sub{font-size:11px;color:var(--muted)}
+  .stage.run{border-color:var(--accent);box-shadow:0 0 26px rgba(124,108,255,.3);transform:translateY(-2px)}
+  .stage.run .dot{background:var(--accent);animation:pulse 1s infinite}
+  .stage.done{border-color:rgba(79,217,155,.5)}
+  .stage.done .dot{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.6)}}
+
+  main{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 26px;min-height:0}
+  .col{display:flex;flex-direction:column;min-height:0;gap:12px}
+  .card{background:var(--panel);backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:18px;
+    display:flex;flex-direction:column;min-height:0;overflow:hidden;transition:.4s var(--ease)}
+  .card:hover{border-color:rgba(255,255,255,.14)}
+  .card h2{font-size:11px;text-transform:uppercase;letter-spacing:1.6px;color:var(--muted);
+    margin:0;padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .grow{flex:1;min-height:0;position:relative}
+  #pad{width:100%;height:100%;display:block;background:#0c0e18;cursor:crosshair;touch-action:none}
+
+  .toolbar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
+  .swatch{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:.25s var(--ease)}
+  .swatch.sel{border-color:#fff;transform:scale(1.18)}
+  .tool-btn{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--txt);
+    padding:7px 11px;border-radius:9px;cursor:pointer;font-size:13px;transition:.25s var(--ease)}
+  .tool-btn:hover{background:rgba(255,255,255,.13);transform:translateY(-1px)}
+  input[type=range]{accent-color:var(--accent)}
+
+  .presets{display:flex;gap:8px;padding:0 16px 12px;flex-wrap:wrap}
+  .chip{padding:7px 14px;border-radius:22px;border:1px solid var(--line);background:rgba(255,255,255,.04);
+    color:var(--muted);cursor:pointer;font-size:12.5px;font-weight:600;transition:.3s var(--ease)}
+  .chip:hover{color:#fff;transform:translateY(-1px)}
+  .chip.sel{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#080912;border-color:transparent}
+
+  .gen{position:relative;margin:0 16px 14px;padding:14px;border:0;border-radius:13px;cursor:pointer;font-size:15px;
+    font-weight:700;font-family:var(--disp);color:#080912;overflow:hidden;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 10px 30px rgba(124,108,255,.4)}
+  .gen::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;
+    background:linear-gradient(120deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-20deg);animation:sheen 3.2s infinite}
+  @keyframes sheen{0%{left:-60%}55%,100%{left:140%}}
+  .gen:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  .gen:disabled{opacity:.5;cursor:not-allowed}.gen:disabled::after{display:none}
+
+  .tabs{display:flex;gap:6px;margin-left:auto}
+  .tab{font-size:12px;padding:5px 12px;border-radius:8px;border:1px solid var(--line);cursor:pointer;color:var(--muted);
+    text-transform:none;letter-spacing:0;font-weight:600;transition:.25s var(--ease)}
+  .tab.sel{background:rgba(124,108,255,.22);color:#fff;border-color:var(--accent)}
+  iframe{width:100%;height:100%;border:0;background:#fff}
+  pre{margin:0;height:100%;overflow:auto;padding:14px;font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:12px;line-height:1.5;color:#cdd2e6;background:#0c0e18;white-space:pre-wrap;word-break:break-word}
+  .code-actions{display:flex;gap:8px;padding:8px 14px;border-top:1px solid var(--line)}
+
+  .audit{padding:12px 16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);max-height:150px;overflow:auto}
+  .audit b{color:var(--txt)}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;margin-left:6px}
+  .pill.ok{background:rgba(79,217,155,.15);color:var(--ok)}
+  .pill.warn{background:rgba(255,107,107,.15);color:var(--danger)}
+  .audit ul{margin:6px 0 0;padding-left:18px}
+  .audit details{margin-top:8px}.audit summary{cursor:pointer;color:var(--accent2)}
+
+  .status{padding:9px 16px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);min-height:34px}
+  .status.err{color:var(--danger)} .status.ok{color:var(--ok)}
+  @media(max-width:880px){main{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
-  <header>
-    <h1><span class="dot">●</span> RetinaStyle&nbsp;AI</h1>
-    <small>sketch &rarr; Gemini &rarr; live UI</small>
-  </header>
+<canvas id="bg"></canvas>
 
-  <main>
-    <section class="panel">
+<header class="rise" style="animation-delay:.02s">
+  <div class="logo">R</div>
+  <h1>RetinaStyle&nbsp;AI</h1>
+  <span class="tag">sketch &rarr; 4 agents (ADK) + MCP &rarr; live UI</span>
+  <a href="https://github.com/Alexy-ak06/RetinaStyle" target="_blank" rel="noopener">GitHub</a>
+</header>
+
+<div class="pipeline" id="pipeline">
+  <div class="stage rise" style="animation-delay:.10s" data-k="Vision"><span class="dot"></span><div><div class="nm">1 · Vision Agent</div><div class="sub">reads the sketch</div></div></div>
+  <div class="stage rise" style="animation-delay:.18s" data-k="CodeGen"><span class="dot"></span><div><div class="nm">2 · CodeGen Agent</div><div class="sub">writes Tailwind UI</div></div></div>
+  <div class="stage rise" style="animation-delay:.26s" data-k="Refiner"><span class="dot"></span><div><div class="nm">3 · Refiner Agent</div><div class="sub">cleans markup</div></div></div>
+  <div class="stage rise" style="animation-delay:.34s" data-k="Security"><span class="dot"></span><div><div class="nm">4 · Security (MCP)</div><div class="sub">audits via MCP</div></div></div>
+</div>
+
+<main>
+  <section class="col">
+    <div class="card grow rise" style="animation-delay:.42s">
       <h2>Draw your wireframe</h2>
-      <div class="canvas-wrap">
-        <canvas id="pad"></canvas>
+      <div class="grow"><canvas id="pad"></canvas></div>
+      <div class="toolbar" id="swatches">
+        <span style="font-size:12px;color:var(--muted)">Pen</span>
+        <span class="swatch sel" data-c="#e8eaf2" style="background:#e8eaf2"></span>
+        <span class="swatch" data-c="#7c6cff" style="background:#7c6cff"></span>
+        <span class="swatch" data-c="#3ad6c5" style="background:#3ad6c5"></span>
+        <span class="swatch" data-c="#ff6b6b" style="background:#ff6b6b"></span>
+        <span class="swatch" data-c="#ffd166" style="background:#ffd166"></span>
+        <input type="range" id="width" min="2" max="14" value="4" style="width:90px" />
+        <button class="tool-btn" id="undo">Undo</button>
+        <button class="tool-btn" id="clear">Clear</button>
       </div>
-      <div class="toolbar">
-        <button id="genBtn">Generate UI</button>
-        <button id="clearBtn" class="ghost">Clear</button>
+    </div>
+    <div class="card rise" style="animation-delay:.5s">
+      <h2>Style preset</h2>
+      <div class="presets" id="presets">
+        <span class="chip sel" data-s="modern, clean, light theme, soft neutral background, indigo accents">Light</span>
+        <span class="chip" data-s="modern dark theme, deep background, vibrant accent, high contrast">Dark</span>
+        <span class="chip" data-s="playful, colourful, rounded, friendly, bright gradients, fun and lively">Playful</span>
+        <span class="chip" data-s="corporate, professional SaaS, restrained navy and grey palette, crisp">Corporate</span>
+        <span class="chip" data-s="glassmorphism, frosted translucent panels, vivid gradient background">Glass</span>
       </div>
-    </section>
+      <button class="gen" id="gen">Generate UI</button>
+    </div>
+  </section>
 
-    <section class="panel">
-      <h2>Live preview (sandboxed)</h2>
-      <iframe id="preview" sandbox="allow-scripts"></iframe>
-      <div class="status" id="status">Draw something on the left, then press "Generate UI".</div>
-    </section>
-  </main>
+  <section class="col">
+    <div class="card grow rise" style="animation-delay:.46s">
+      <h2>Live preview
+        <div class="tabs">
+          <span class="tab sel" id="tabPreview">Preview</span>
+          <span class="tab" id="tabCode">Code</span>
+        </div>
+      </h2>
+      <div class="grow">
+        <iframe id="preview" sandbox="allow-scripts"></iframe>
+        <pre id="code" style="display:none"></pre>
+      </div>
+      <div class="code-actions" id="codeActions" style="display:none">
+        <button class="tool-btn" id="copy">Copy code</button>
+        <button class="tool-btn" id="download">Download .html</button>
+      </div>
+      <div class="audit" id="audit" style="display:none"></div>
+      <div class="status" id="status">Draw a wireframe, pick a style, and press Generate UI.</div>
+    </div>
+  </section>
+</main>
 
-  <script>
-    const pad = document.getElementById('pad');
-    const ctx = pad.getContext('2d');
-    function fitCanvas() {
-      const r = pad.getBoundingClientRect();
-      const snapshot = pad.width ? ctx.getImageData(0, 0, pad.width, pad.height) : null;
-      pad.width = r.width;
-      pad.height = r.height;
-      ctx.fillStyle = '#11141c';
-      ctx.fillRect(0, 0, pad.width, pad.height);
-      ctx.strokeStyle = '#e6e8ee';
-      ctx.lineWidth = 3;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      if (snapshot) ctx.putImageData(snapshot, 0, 0);
-    }
-    window.addEventListener('resize', fitCanvas);
-    fitCanvas();
+<script>
+const bg=document.getElementById('bg'),bx=bg.getContext('2d');let pts=[];
+function sizeBg(){bg.width=innerWidth;bg.height=innerHeight;}
+function initPts(){pts=[];const n=Math.min(90,Math.floor(innerWidth/18));
+  for(let i=0;i<n;i++)pts.push({x:Math.random()*bg.width,y:Math.random()*bg.height,vx:(Math.random()-.5)*.28,vy:(Math.random()-.5)*.28});}
+sizeBg();initPts();addEventListener('resize',()=>{sizeBg();initPts();});
+function tick(){bx.clearRect(0,0,bg.width,bg.height);
+  for(const p of pts){p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>bg.width)p.vx*=-1;if(p.y<0||p.y>bg.height)p.vy*=-1;}
+  for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){
+    const a=pts[i],b=pts[j],d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(d<132){bx.strokeStyle='rgba(124,108,255,'+(0.13*(1-d/132))+')';bx.lineWidth=1;
+      bx.beginPath();bx.moveTo(a.x,a.y);bx.lineTo(b.x,b.y);bx.stroke();}}
+  for(const p of pts){bx.fillStyle='rgba(58,214,197,0.55)';bx.beginPath();bx.arc(p.x,p.y,1.4,0,7);bx.fill();}
+  requestAnimationFrame(tick);}
+tick();
 
-    let drawing = false;
-    function pos(e) {
-      const r = pad.getBoundingClientRect();
-      const p = e.touches ? e.touches[0] : e;
-      return { x: p.clientX - r.left, y: p.clientY - r.top };
-    }
-    function start(e) { drawing = true; const {x,y} = pos(e); ctx.beginPath(); ctx.moveTo(x,y); e.preventDefault(); }
-    function move(e)  { if(!drawing) return; const {x,y} = pos(e); ctx.lineTo(x,y); ctx.stroke(); e.preventDefault(); }
-    function end()    { drawing = false; }
-    pad.addEventListener('mousedown', start);
-    pad.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', end);
-    pad.addEventListener('touchstart', start, {passive:false});
-    pad.addEventListener('touchmove', move, {passive:false});
-    pad.addEventListener('touchend', end);
+const pad=document.getElementById('pad'),ctx=pad.getContext('2d');
+let penColor='#e8eaf2',penWidth=4,undoStack=[];
+function fit(){const r=pad.getBoundingClientRect();const snap=pad.width?ctx.getImageData(0,0,pad.width,pad.height):null;
+  pad.width=r.width;pad.height=r.height;ctx.fillStyle='#0c0e18';ctx.fillRect(0,0,pad.width,pad.height);
+  ctx.lineCap='round';ctx.lineJoin='round';if(snap)ctx.putImageData(snap,0,0);}
+window.addEventListener('resize',fit);fit();
+function pushUndo(){if(undoStack.length>25)undoStack.shift();undoStack.push(ctx.getImageData(0,0,pad.width,pad.height));}
+let drawing=false;
+function pos(e){const r=pad.getBoundingClientRect();const p=e.touches?e.touches[0]:e;return{x:p.clientX-r.left,y:p.clientY-r.top};}
+function start(e){pushUndo();drawing=true;const{x,y}=pos(e);ctx.strokeStyle=penColor;ctx.lineWidth=penWidth;ctx.beginPath();ctx.moveTo(x,y);e.preventDefault();}
+function move(e){if(!drawing)return;const{x,y}=pos(e);ctx.lineTo(x,y);ctx.stroke();e.preventDefault();}
+function end(){drawing=false;}
+pad.addEventListener('mousedown',start);pad.addEventListener('mousemove',move);window.addEventListener('mouseup',end);
+pad.addEventListener('touchstart',start,{passive:false});pad.addEventListener('touchmove',move,{passive:false});pad.addEventListener('touchend',end);
 
-    document.getElementById('clearBtn').onclick = () => {
-      ctx.fillStyle = '#11141c';
-      ctx.fillRect(0, 0, pad.width, pad.height);
-      setStatus('Cleared. Draw a new wireframe.', '');
-    };
+document.getElementById('swatches').addEventListener('click',e=>{
+  if(e.target.classList.contains('swatch')){document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('sel'));
+    e.target.classList.add('sel');penColor=e.target.dataset.c;}});
+document.getElementById('width').addEventListener('input',e=>penWidth=+e.target.value);
+document.getElementById('undo').onclick=()=>{if(undoStack.length)ctx.putImageData(undoStack.pop(),0,0);};
+document.getElementById('clear').onclick=()=>{pushUndo();ctx.fillStyle='#0c0e18';ctx.fillRect(0,0,pad.width,pad.height);setStatus('Cleared. Draw a new wireframe.','');};
 
-    const statusEl = document.getElementById('status');
-    function setStatus(msg, kind) {
-      statusEl.textContent = msg;
-      statusEl.className = 'status ' + (kind || '');
-    }
+let selStyle=document.querySelector('.chip.sel').dataset.s;
+document.getElementById('presets').addEventListener('click',e=>{
+  if(e.target.classList.contains('chip')){document.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
+    e.target.classList.add('sel');selStyle=e.target.dataset.s;}});
 
-    const genBtn = document.getElementById('genBtn');
-    genBtn.onclick = async () => {
-      genBtn.disabled = true;
-      setStatus('Sending sketch to Gemini…', '');
-      const dataURL = pad.toDataURL('image/png');
-      try {
-        const res = await fetch('/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: dataURL })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Request failed');
+const stages=[...document.querySelectorAll('.stage')];
+function resetStages(){stages.forEach(s=>s.classList.remove('run','done'));}
+let stepTimer=null;
+function runStages(){let i=0;resetStages();stages[0].classList.add('run');
+  stepTimer=setInterval(()=>{if(i<stages.length-1){stages[i].classList.remove('run');stages[i].classList.add('done');i++;stages[i].classList.add('run');}},9000);}
+function finishStages(){clearInterval(stepTimer);stages.forEach(s=>{s.classList.remove('run');s.classList.add('done');});}
 
-        document.getElementById('preview').srcdoc = data.code;
-console.log('GENERATED CODE:\n', data.code);
+const tabP=document.getElementById('tabPreview'),tabC=document.getElementById('tabCode');
+const preview=document.getElementById('preview'),codeEl=document.getElementById('code'),codeActions=document.getElementById('codeActions');
+tabP.onclick=()=>{tabP.classList.add('sel');tabC.classList.remove('sel');preview.style.display='';codeEl.style.display='none';codeActions.style.display='none';};
+tabC.onclick=()=>{tabC.classList.add('sel');tabP.classList.remove('sel');preview.style.display='none';codeEl.style.display='';codeActions.style.display='flex';};
 
-        const flagged = (data.security_findings || []).length;
-        if (flagged) {
-          setStatus(`UI generated. Security validator neutralized ${flagged} risky pattern(s).`, 'ok');
-        } else {
-          setStatus('UI generated and rendered. Clean output.', 'ok');
-        }
-      } catch (err) {
-        setStatus('Error: ' + err.message, 'err');
-      } finally {
-        genBtn.disabled = false;
-      }
-    };
-  </script>
+let lastCode='';
+document.getElementById('copy').onclick=()=>{navigator.clipboard.writeText(lastCode);setStatus('Code copied to clipboard.','ok');};
+document.getElementById('download').onclick=()=>{const b=new Blob([lastCode],{type:'text/html'});const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);a.download='retinastyle-ui.html';a.click();};
+
+const statusEl=document.getElementById('status');
+function setStatus(m,k){statusEl.textContent=m;statusEl.className='status '+(k||'');}
+const auditEl=document.getElementById('audit');
+
+const gen=document.getElementById('gen');
+gen.onclick=async()=>{
+  gen.disabled=true;auditEl.style.display='none';
+  setStatus('Running the agent pipeline…','');runStages();
+  try{
+    const res=await fetch('/generate',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({image:pad.toDataURL('image/png'),style:selStyle})});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Request failed');
+    finishStages();
+    lastCode=data.code||'';
+    preview.srcdoc=lastCode;codeEl.textContent=lastCode;
+    const sec=(data.security_findings||[]).length, a11y=(data.accessibility_issues||[]);
+    auditEl.style.display='block';
+    auditEl.innerHTML=
+      '<b>Security (MCP)</b>'+(sec?'<span class="pill warn">'+sec+' neutralised</span>':'<span class="pill ok">clean</span>')+
+      ' &nbsp; <b>Accessibility</b>'+(a11y.length?'<span class="pill warn">'+a11y.length+' issue(s)</span>':'<span class="pill ok">pass</span>')+
+      (a11y.length?'<ul>'+a11y.map(x=>'<li>'+x+'</li>').join('')+'</ul>':'')+
+      (data.spec?'<details><summary>Vision agent spec</summary><div style="margin-top:6px;white-space:pre-wrap">'+
+        data.spec.replace(/</g,'&lt;')+'</div></details>':'');
+    setStatus('Done. UI generated by 4 agents and audited over MCP.','ok');
+  }catch(err){finishStages();setStatus('Error: '+err.message,'err');}
+  finally{gen.disabled=false;}
+};
+</script>
 </body>
 </html>
