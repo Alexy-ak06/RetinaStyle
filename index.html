@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RetinaStyle AI</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #0b0d12;
+      color: #e6e8ee;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 14px 20px;
+      border-bottom: 1px solid #1c2030;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
+    header .dot { color: #6c8cff; }
+    header small { color: #7b8194; margin-left: auto; }
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: #1c2030;
+      min-height: 0;
+    }
+    .panel { background: #0b0d12; display: flex; flex-direction: column; min-height: 0; }
+    .panel h2 {
+      font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+      color: #7b8194; margin: 0; padding: 10px 14px; border-bottom: 1px solid #1c2030;
+    }
+    .canvas-wrap { flex: 1; position: relative; }
+    #pad { width: 100%; height: 100%; background: #11141c; display: block; cursor: crosshair; touch-action: none; }
+    .toolbar { padding: 10px 14px; display: flex; gap: 8px; border-top: 1px solid #1c2030; }
+    button {
+      background: #6c8cff; color: #0b0d12; border: 0; border-radius: 8px;
+      padding: 9px 14px; font-weight: 600; cursor: pointer; font-size: 13px;
+    }
+    button.ghost { background: #1c2030; color: #c3c8d6; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+    .status { padding: 8px 14px; font-size: 12px; color: #7b8194; border-top: 1px solid #1c2030; min-height: 32px; }
+    .status.err { color: #ff6b6b; }
+    .status.ok { color: #5bd6a0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span class="dot">●</span> RetinaStyle&nbsp;AI</h1>
+    <small>sketch &rarr; Gemini &rarr; live UI</small>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Draw your wireframe</h2>
+      <div class="canvas-wrap">
+        <canvas id="pad"></canvas>
+      </div>
+      <div class="toolbar">
+        <button id="genBtn">Generate UI</button>
+        <button id="clearBtn" class="ghost">Clear</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Live preview (sandboxed)</h2>
+      <iframe id="preview" sandbox="allow-scripts"></iframe>
+      <div class="status" id="status">Draw something on the left, then press "Generate UI".</div>
+    </section>
+  </main>
+
+  <script>
+    const pad = document.getElementById('pad');
+    const ctx = pad.getContext('2d');
+    function fitCanvas() {
+      const r = pad.getBoundingClientRect();
+      const snapshot = pad.width ? ctx.getImageData(0, 0, pad.width, pad.height) : null;
+      pad.width = r.width;
+      pad.height = r.height;
+      ctx.fillStyle = '#11141c';
+      ctx.fillRect(0, 0, pad.width, pad.height);
+      ctx.strokeStyle = '#e6e8ee';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      if (snapshot) ctx.putImageData(snapshot, 0, 0);
+    }
+    window.addEventListener('resize', fitCanvas);
+    fitCanvas();
+
+    let drawing = false;
+    function pos(e) {
+      const r = pad.getBoundingClientRect();
+      const p = e.touches ? e.touches[0] : e;
+      return { x: p.clientX - r.left, y: p.clientY - r.top };
+    }
+    function start(e) { drawing = true; const {x,y} = pos(e); ctx.beginPath(); ctx.moveTo(x,y); e.preventDefault(); }
+    function move(e)  { if(!drawing) return; const {x,y} = pos(e); ctx.lineTo(x,y); ctx.stroke(); e.preventDefault(); }
+    function end()    { drawing = false; }
+    pad.addEventListener('mousedown', start);
+    pad.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+    pad.addEventListener('touchstart', start, {passive:false});
+    pad.addEventListener('touchmove', move, {passive:false});
+    pad.addEventListener('touchend', end);
+
+    document.getElementById('clearBtn').onclick = () => {
+      ctx.fillStyle = '#11141c';
+      ctx.fillRect(0, 0, pad.width, pad.height);
+      setStatus('Cleared. Draw a new wireframe.', '');
+    };
+
+    const statusEl = document.getElementById('status');
+    function setStatus(msg, kind) {
+      statusEl.textContent = msg;
+      statusEl.className = 'status ' + (kind || '');
+    }
+
+    const genBtn = document.getElementById('genBtn');
+    genBtn.onclick = async () => {
+      genBtn.disabled = true;
+      setStatus('Sending sketch to Gemini…', '');
+      const dataURL = pad.toDataURL('image/png');
+      try {
+        const res = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: dataURL })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Request failed');
+
+        document.getElementById('preview').srcdoc = data.code;
+console.log('GENERATED CODE:\n', data.code);
+
+        const flagged = (data.security_findings || []).length;
+        if (flagged) {
+          setStatus(`UI generated. Security validator neutralized ${flagged} risky pattern(s).`, 'ok');
+        } else {
+          setStatus('UI generated and rendered. Clean output.', 'ok');
+        }
+      } catch (err) {
+        setStatus('Error: ' + err.message, 'err');
+      } finally {
+        genBtn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

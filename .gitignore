@@ -1,0 +1,13 @@
+# Secrets -- NEVER commit your real API key
+.env
+
+# Python virtual environment
+venv/
+
+# Python caches
+__pycache__/
+*.pyc
+
+# OS / editor cruft
+.DS_Store
+.vscode/
