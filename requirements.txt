@@ -1,6 +1,7 @@
-fastapi==0.138.0
-uvicorn==0.34.0
-google-ads==2.3.0
-google-genai==2.10.0
-python-dotenv==1.0.1
-python-multipart==0.0.20
+fastapi
+uvicorn[standard]
+google-adk
+google-genai
+python-dotenv
+python-multipart
+mcp[cli]
