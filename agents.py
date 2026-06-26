@@ -9,13 +9,19 @@ Vision -> CodeGen -> Refiner -> SecurityAuditor  (an ADK SequentialAgent)
   4. SecurityAuditor Agent : calls the MCP server's validate_ui_code and
                              audit_accessibility tools (final_code).
 
-run_agent_pipeline returns {"spec", "code"} so the UI can show the
-intermediate reasoning, not just the final result.
+run_agent_pipeline returns a dict: {"spec", "code"} so the UI can show the
+intermediate reasoning, not just the final result. It retries automatically on
+transient (rate-limit / server-busy) errors.
+
+Standalone test:  python agents.py
 """
 
 import os
+import re
 import sys
 import uuid
+import random
+import asyncio
 
 from dotenv import load_dotenv
 from google.adk.agents import LlmAgent, SequentialAgent
@@ -128,8 +134,65 @@ _session_service = InMemorySessionService()
 _runner = Runner(agent=pipeline, app_name=APP_NAME, session_service=_session_service)
 
 
-async def run_agent_pipeline(image_bytes: bytes, style: str = "modern, clean, light") -> dict:
-    """Run the pipeline. Returns {"spec": <ui_spec>, "code": <final html>}."""
+# Substrings that mark a transient, retryable error (rate limits / busy servers).
+_TRANSIENT_MARKERS = (
+    "429", "resource_exhausted", "rate limit", "quota",
+    "503", "unavailable", "high demand",
+    "500", "internal", "deadline", "timeout", "502",
+)
+
+
+def _is_transient(err: Exception) -> bool:
+    """True if the error looks like a temporary rate-limit / availability blip."""
+    s = str(err).lower()
+    return any(m in s for m in _TRANSIENT_MARKERS)
+
+
+def _suggested_delay(err: Exception, fallback: float) -> float:
+    """Honor the server's retry hint if present (e.g. 'retry in 37.5s'), capped."""
+    s = str(err)
+    m = (re.search(r"retry in ([\d.]+)\s*s", s, re.IGNORECASE)
+         or re.search(r"retrydelay['\"]?\s*[:=]?\s*['\"]?(\d+)\s*s", s, re.IGNORECASE))
+    if m:
+        try:
+            return min(float(m.group(1)) + 1.0, 65.0)
+        except ValueError:
+            pass
+    return fallback
+
+
+async def run_agent_pipeline(
+    image_bytes: bytes,
+    style: str = "modern, clean, light",
+    max_attempts: int = 5,
+) -> dict:
+    """Run the pipeline with retry/backoff on transient (429/503/5xx) errors.
+
+    Permanent errors (bad input, auth, etc.) are raised immediately.
+    """
+    last_err: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return await _run_pipeline_once(image_bytes, style)
+        except Exception as e:  # noqa: BLE001 - we re-raise non-transient below
+            last_err = e
+            if attempt == max_attempts or not _is_transient(e):
+                raise
+            # exponential backoff (capped), plus jitter to avoid lockstep retries
+            backoff = min(2.0 * (2 ** (attempt - 1)), 30.0)
+            delay = _suggested_delay(e, fallback=backoff)
+            delay += random.uniform(0, 0.6 * delay)
+            print(
+                f"[retry] transient error on attempt {attempt}/{max_attempts}; "
+                f"waiting {delay:.1f}s then retrying. ({str(e)[:120]})"
+            )
+            await asyncio.sleep(delay)
+    assert last_err is not None
+    raise last_err
+
+
+async def _run_pipeline_once(image_bytes: bytes, style: str = "modern, clean, light") -> dict:
+    """One pass of the pipeline. Returns {"spec": <ui_spec>, "code": <final html>}."""
     user_id = "user"
     session_id = uuid.uuid4().hex
 
@@ -161,3 +224,20 @@ async def run_agent_pipeline(image_bytes: bytes, style: str = "modern, clean, li
         "spec": state.get("ui_spec", ""),
         "code": state.get("final_code") or state.get("refined_code", ""),
     }
+
+
+if __name__ == "__main__":
+    async def _test():
+        import base64
+        print("Running 4-agent pipeline (with MCP + retry) on a test...\n")
+        # 1x1 transparent PNG just to exercise the wiring
+        png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        )
+        result = await run_agent_pipeline(png, style="modern dark, glassmorphism")
+        print("--- SPEC (first 200 chars) ---")
+        print(result["spec"][:200])
+        print("\n--- CODE length:", len(result["code"]), "chars ---")
+        print("OK" if "<" in result["code"] else "EMPTY")
+
+    asyncio.run(_test())
